@@ -29,7 +29,7 @@ export function ChatKitPanel({
       domainKey: CHATKIT_DOMAIN_KEY,
     },
     composer: {
-      placeholder: "Message...",
+      placeholder: "请输入订单、物流或退款问题...",
     },
     history: {
       enabled: false,
@@ -47,17 +47,19 @@ export function ChatKitPanel({
     },
     initialThread: initialThreadId ?? null,
     startScreen: {
-      greeting: "Hi! I'm your airline assistant. How can I help today?",
+      greeting: "你好，我是电商售后智能客服。可以帮你查询订单、物流和处理退款。",
       prompts: [
-        { label: "Change my seat", prompt: "Can you move me to seat 14C?" },
         {
-          label: "Flight status",
-          prompt: "What's the status of flight FLT-123?",
+          label: "查询订单",
+          prompt: "帮我查询订单 DDN20260001 的状态",
         },
         {
-          label: "Missed connection",
-          prompt:
-            "My flight from Paris to New York was delayed and I missed my connection to Austin. Also, my checked bag is missing and I need to spend the night in New York. Can you help me?",
+          label: "查询物流",
+          prompt: "订单 DDN20260001 什么时候可以送到？",
+        },
+        {
+          label: "申请退款",
+          prompt: "我要退订单 DDN20260002，因为商品不符合预期",
         },
       ],
     },
@@ -89,7 +91,7 @@ export function ChatKitPanel({
     <div className="flex flex-col h-full flex-1 bg-white shadow-sm border border-gray-200 border-t-0 rounded-xl">
       <div className="bg-blue-600 text-white h-12 px-4 flex items-center rounded-t-xl">
         <h2 className="font-semibold text-sm sm:text-base lg:text-lg">
-          Customer View
+          用户对话
         </h2>
       </div>
       <div className="flex-1 overflow-hidden pb-1.5">
