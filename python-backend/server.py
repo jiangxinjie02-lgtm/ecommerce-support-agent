@@ -37,13 +37,18 @@ from chatkit.types import (
 )
 from chatkit.store import NotFoundError
 
-from airline.context import AirlineAgentChatContext, AirlineAgentContext, create_initial_context, public_context
-from airline.agents import (
-    booking_cancellation_agent,
+from ecommerce.context import (
+    EcommerceAgentChatContext,
+    EcommerceAgentContext,
+    create_initial_context,
+    public_context,
+)
+from ecommerce.agents import (
+    ALL_AGENTS,
     faq_agent,
-    flight_information_agent,
-    refunds_compensation_agent,
-    seat_special_services_agent,
+    logistics_agent,
+    order_agent,
+    refund_agent,
     triage_agent,
 )
 from memory_store import MemoryStore
@@ -70,12 +75,7 @@ class GuardrailCheck(BaseModel):
 def _get_agent_by_name(name: str):
     """Return the agent object by name."""
     agents = {
-        triage_agent.name: triage_agent,
-        faq_agent.name: faq_agent,
-        seat_special_services_agent.name: seat_special_services_agent,
-        flight_information_agent.name: flight_information_agent,
-        booking_cancellation_agent.name: booking_cancellation_agent,
-        refunds_compensation_agent.name: refunds_compensation_agent,
+        agent.name: agent for agent in ALL_AGENTS
     }
     return agents.get(name, triage_agent)
 
@@ -106,14 +106,7 @@ def _build_agents_list() -> List[Dict[str, Any]]:
             "input_guardrails": [_get_guardrail_name(g) for g in getattr(agent, "input_guardrails", [])],
         }
 
-    return [
-        make_agent_dict(triage_agent),
-        make_agent_dict(faq_agent),
-        make_agent_dict(seat_special_services_agent),
-        make_agent_dict(flight_information_agent),
-        make_agent_dict(booking_cancellation_agent),
-        make_agent_dict(refunds_compensation_agent),
-    ]
+    return [make_agent_dict(agent) for agent in ALL_AGENTS]
 
 
 def _user_message_to_text(message: UserMessageItem) -> str:
@@ -139,7 +132,7 @@ def _parse_tool_args(raw_args: Any) -> Any:
 @dataclass
 class ConversationState:
     input_items: List[Any] = field(default_factory=list)
-    context: AirlineAgentContext = field(default_factory=create_initial_context)
+    context: EcommerceAgentContext = field(default_factory=create_initial_context)
     current_agent_name: str = triage_agent.name
     events: List[AgentEvent] = field(default_factory=list)
     guardrails: List[GuardrailCheck] = field(default_factory=list)
@@ -324,7 +317,7 @@ class AirlineServer(ChatKitServer[dict[str, Any]]):
             state.input_items.append({"content": user_text, "role": "user"})
 
         previous_context = public_context(state.context)
-        chat_context = AirlineAgentChatContext(
+        chat_context = EcommerceAgentChatContext(
             thread=thread,
             store=self.store,
             request_context=context,
@@ -412,7 +405,7 @@ class AirlineServer(ChatKitServer[dict[str, Any]]):
                     )
                 )
             state.guardrails = checks
-            refusal = "Sorry, I can only answer questions related to airline travel."
+            refusal = "抱歉，我只能处理订单、物流、退款和售后政策相关问题。"
             state.input_items.append({"role": "assistant", "content": refusal})
             yield ThreadItemDoneEvent(
                 item=AssistantMessageItem(

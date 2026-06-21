@@ -32,10 +32,10 @@ export function AgentPanel({
       <div className="bg-blue-600 text-white h-12 px-4 flex items-center gap-3 shadow-sm rounded-t-xl">
         <Bot className="h-5 w-5" />
         <h1 className="font-semibold text-sm sm:text-base lg:text-lg">
-          Agent View
+          Agent 运行视图
         </h1>
         <span className="ml-auto text-xs font-light tracking-wide opacity-80">
-          Airline&nbsp;Co.
+          电商售后智能客服
         </span>
       </div>
 

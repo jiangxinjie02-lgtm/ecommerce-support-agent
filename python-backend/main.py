@@ -4,22 +4,24 @@ import json
 import os
 from typing import Any, Dict
 
+from dotenv import load_dotenv
 from chatkit.server import StreamingResult
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 
-from airline.agents import (
-    booking_cancellation_agent,
+load_dotenv()
+
+from ecommerce.agents import (
+    logistics_agent,
+    order_agent,
     faq_agent,
-    flight_information_agent,
-    refunds_compensation_agent,
-    seat_special_services_agent,
+    refund_agent,
     triage_agent,
 )
-from airline.context import (
-    AirlineAgentChatContext,
-    AirlineAgentContext,
+from ecommerce.context import (
+    EcommerceAgentChatContext,
+    EcommerceAgentContext,
     create_initial_context,
     public_context,
 )
@@ -101,16 +103,15 @@ async def health_check() -> Dict[str, str]:
 
 
 __all__ = [
-    "AirlineAgentChatContext",
-    "AirlineAgentContext",
+    "EcommerceAgentChatContext",
+    "EcommerceAgentContext",
     "app",
-    "booking_cancellation_agent",
     "chat_server",
     "create_initial_context",
     "faq_agent",
-    "flight_information_agent",
+    "logistics_agent",
+    "order_agent",
     "public_context",
-    "refunds_compensation_agent",
-    "seat_special_services_agent",
+    "refund_agent",
     "triage_agent",
 ]
