@@ -17,6 +17,12 @@
 - DeepSeek API 接入
 - 本地安全规则 Guardrail
 
+## 运行效果
+
+退款 Agent 会先检查退款资格并等待用户明确确认，确认后才创建退款申请：
+
+![退款流程演示](docs/refund-flow-demo.png)
+
 ## 系统架构
 
 ```mermaid
