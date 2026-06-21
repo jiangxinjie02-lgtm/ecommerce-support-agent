@@ -19,7 +19,7 @@ MODEL = get_agent_model()
 
 
 order_agent = Agent[EcommerceAgentChatContext](
-    name="订单查询 Agent",
+    name="Order Agent",
     model=MODEL,
     handoff_description="查询订单、商品、金额、支付和订单状态。",
     instructions=(
@@ -33,7 +33,7 @@ order_agent = Agent[EcommerceAgentChatContext](
 
 
 logistics_agent = Agent[EcommerceAgentChatContext](
-    name="物流查询 Agent",
+    name="Logistics Agent",
     model=MODEL,
     handoff_description="查询快递公司、运单号、预计送达时间和物流轨迹。",
     instructions=(
@@ -47,7 +47,7 @@ logistics_agent = Agent[EcommerceAgentChatContext](
 
 
 refund_agent = Agent[EcommerceAgentChatContext](
-    name="退款处理 Agent",
+    name="Refund Agent",
     model=MODEL,
     handoff_description="检查退款条件，并在用户明确确认后创建退款申请。",
     instructions=(
@@ -62,7 +62,7 @@ refund_agent = Agent[EcommerceAgentChatContext](
 
 
 faq_agent = Agent[EcommerceAgentChatContext](
-    name="售后政策 Agent",
+    name="AfterSales Policy Agent",
     model=MODEL,
     handoff_description="回答退换货期限、运费和退款到账时间。",
     instructions=(
@@ -76,7 +76,7 @@ faq_agent = Agent[EcommerceAgentChatContext](
 
 
 triage_agent = Agent[EcommerceAgentChatContext](
-    name="电商客服分流 Agent",
+    name="Ecommerce Triage Agent",
     model=MODEL,
     handoff_description="识别用户意图并转交订单、物流、退款或售后政策 Agent。",
     instructions=(
@@ -103,4 +103,3 @@ ALL_AGENTS = [
     refund_agent,
     faq_agent,
 ]
-
