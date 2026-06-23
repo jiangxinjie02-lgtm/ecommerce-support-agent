@@ -28,7 +28,10 @@ from chatkit.types import (
     AssistantMessageContent,
     AssistantMessageItem,
     ClientEffectEvent,
+    ThreadItemAddedEvent,
     ThreadItemDoneEvent,
+    ThreadItemRemovedEvent,
+    ThreadItemUpdatedEvent,
     ThreadMetadata,
     ThreadStreamEvent,
     UserMessageItem,
@@ -151,6 +154,53 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
         if thread_id not in self._state:
             self._state[thread_id] = ConversationState()
         return self._state[thread_id]
+
+    def _remap_assistant_item_event(
+        self,
+        event: ThreadStreamEvent,
+        thread: ThreadMetadata,
+        context: dict[str, Any],
+        item_ids: dict[str, str],
+    ) -> ThreadStreamEvent:
+        """Give every assistant message a thread-unique ChatKit item id.
+
+        Some OpenAI-compatible providers reuse response item ids between runs.
+        ChatKit treats an item id as a stable UI key, so a repeated id causes a
+        later answer to replace an earlier answer in the conversation.
+        """
+        if isinstance(event, ThreadItemAddedEvent) and isinstance(
+            event.item, AssistantMessageItem
+        ):
+            source_id = event.item.id
+            target_id = self.store.generate_item_id("message", thread, context)
+            item_ids[source_id] = target_id
+            return event.model_copy(
+                update={"item": event.item.model_copy(update={"id": target_id})}
+            )
+
+        if isinstance(event, ThreadItemDoneEvent) and isinstance(
+            event.item, AssistantMessageItem
+        ):
+            source_id = event.item.id
+            target_id = item_ids.pop(
+                source_id,
+                self.store.generate_item_id("message", thread, context),
+            )
+            return event.model_copy(
+                update={"item": event.item.model_copy(update={"id": target_id})}
+            )
+
+        if isinstance(event, ThreadItemUpdatedEvent):
+            target_id = item_ids.get(event.item_id)
+            if target_id:
+                return event.model_copy(update={"item_id": target_id})
+
+        if isinstance(event, ThreadItemRemovedEvent):
+            target_id = item_ids.pop(event.item_id, None)
+            if target_id:
+                return event.model_copy(update={"item_id": target_id})
+
+        return event
 
     async def _ensure_thread(
         self, thread_id: Optional[str], context: dict[str, Any]
@@ -324,6 +374,7 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
             state=state.context,
         )
         streamed_items_seen = 0
+        assistant_item_ids: dict[str, str] = {}
 
         # Tell the client which thread to bind runner updates to before streaming starts.
         yield ClientEffectEvent(name="runner_bind_thread", data={"thread_id": thread.id, "ts": time.time()})
@@ -335,6 +386,12 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
                 context=chat_context,
             )
             async for event in stream_agent_response(chat_context, result):
+                event = self._remap_assistant_item_event(
+                    event,
+                    thread,
+                    context,
+                    assistant_item_ids,
+                )
                 if isinstance(event, ProgressUpdateEvent) or getattr(event, "type", "") == "progress_update_event":
                     # Ignore progress updates for the Runner panel; ChatKit will handle them separately.
                     continue
