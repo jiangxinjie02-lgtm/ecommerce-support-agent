@@ -138,7 +138,7 @@ class ConversationState:
     guardrails: List[GuardrailCheck] = field(default_factory=list)
 
 
-class AirlineServer(ChatKitServer[dict[str, Any]]):
+class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
     def __init__(self) -> None:
         self.store = MemoryStore()
         super().__init__(self.store)

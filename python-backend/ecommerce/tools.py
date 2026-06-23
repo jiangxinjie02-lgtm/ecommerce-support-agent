@@ -60,6 +60,9 @@ async def check_refund(
     result = check_refund_eligibility(order_id)
     context.context.state.order_id = order_id.upper()
     context.context.state.pending_refund_confirmation = bool(result.get("eligible"))
+    context.context.state.refund_confirmation_token = result.pop(
+        "confirmation_token", None
+    )
     return _dump(result)
 
 
@@ -72,14 +75,20 @@ async def create_refund_request(
 ) -> str:
     """创建退款申请。只有用户明确确认时 confirmed 才能为 true。"""
     await context.context.stream(ProgressUpdateEvent(text="正在提交退款申请..."))
-    result = create_refund(order_id, reason, confirmed)
     state = context.context.state
+    result = create_refund(
+        order_id,
+        reason,
+        confirmed,
+        confirmation_token=state.refund_confirmation_token,
+    )
     state.order_id = order_id.upper()
     state.pending_refund_confirmation = bool(result.get("confirmation_required"))
     if result["success"]:
         state.refund_request_id = result["refund"]["refund_request_id"]
         state.refund_status = result["refund"]["status"]
         state.pending_refund_confirmation = False
+        state.refund_confirmation_token = None
     return _dump(result)
 
 

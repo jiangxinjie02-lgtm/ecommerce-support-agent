@@ -16,6 +16,7 @@ class EcommerceAgentContext(BaseModel):
     logistics_status: str | None = None
     refund_request_id: str | None = None
     refund_status: str | None = None
+    refund_confirmation_token: str | None = None
     pending_refund_confirmation: bool = False
 
 
@@ -31,6 +32,7 @@ def public_context(ctx: EcommerceAgentContext) -> dict:
     return {
         key: value
         for key, value in ctx.model_dump().items()
-        if value not in (None, False, [], {})
+        if key != "refund_confirmation_token"
+        and value not in (None, False, [], {})
     }
 

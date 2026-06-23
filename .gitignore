@@ -133,3 +133,9 @@ node_modules/
 # ui stuff
 
 ui/.next/
+
+# Local database
+python-backend/data/
+*.db
+*.sqlite
+*.sqlite3

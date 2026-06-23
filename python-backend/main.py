@@ -12,6 +12,9 @@ from fastapi.responses import Response, StreamingResponse
 
 load_dotenv()
 
+from ecommerce.database import database_health
+from ecommerce.seed import seed_demo_data
+from ecommerce.services import query_logistics, query_order, query_refund
 from ecommerce.agents import (
     logistics_agent,
     order_agent,
@@ -25,9 +28,10 @@ from ecommerce.context import (
     create_initial_context,
     public_context,
 )
-from server import AirlineServer
+from server import EcommerceSupportServer
 
 app = FastAPI()
+seed_demo_data()
 
 # Disable tracing for zero data retention orgs
 os.environ.setdefault("OPENAI_TRACING_DISABLED", "1")
@@ -41,16 +45,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-chat_server = AirlineServer()
+chat_server = EcommerceSupportServer()
 
 
-def get_server() -> AirlineServer:
+def get_server() -> EcommerceSupportServer:
     return chat_server
 
 
 @app.post("/chatkit")
 async def chatkit_endpoint(
-    request: Request, server: AirlineServer = Depends(get_server)
+    request: Request, server: EcommerceSupportServer = Depends(get_server)
 ) -> Response:
     payload = await request.body()
     result = await server.process(payload, {"request": request})
@@ -64,14 +68,14 @@ async def chatkit_endpoint(
 @app.get("/chatkit/state")
 async def chatkit_state(
     thread_id: str = Query(...),
-    server: AirlineServer = Depends(get_server),
+    server: EcommerceSupportServer = Depends(get_server),
 ) -> Dict[str, Any]:
     return await server.snapshot(thread_id, {"request": None})
 
 
 @app.get("/chatkit/bootstrap")
 async def chatkit_bootstrap(
-    server: AirlineServer = Depends(get_server),
+    server: EcommerceSupportServer = Depends(get_server),
 ) -> Dict[str, Any]:
     return await server.snapshot(None, {"request": None})
 
@@ -79,7 +83,7 @@ async def chatkit_bootstrap(
 @app.get("/chatkit/state/stream")
 async def chatkit_state_stream(
     thread_id: str = Query(...),
-    server: AirlineServer = Depends(get_server),
+    server: EcommerceSupportServer = Depends(get_server),
 ):
     thread = await server.ensure_thread(thread_id, {"request": None})
     queue = server.register_listener(thread.id)
@@ -99,7 +103,31 @@ async def chatkit_state_stream(
 
 @app.get("/health")
 async def health_check() -> Dict[str, str]:
-    return {"status": "healthy"}
+    return database_health()
+
+
+@app.get("/api/orders/{order_id}")
+async def order_detail(
+    order_id: str,
+    customer_id: str | None = Query(default=None),
+) -> Dict[str, Any]:
+    return query_order(order_id, customer_id=customer_id)
+
+
+@app.get("/api/orders/{order_id}/logistics")
+async def logistics_detail(
+    order_id: str,
+    customer_id: str | None = Query(default=None),
+) -> Dict[str, Any]:
+    return query_logistics(order_id, customer_id=customer_id)
+
+
+@app.get("/api/refunds/{order_id}")
+async def refund_detail(
+    order_id: str,
+    customer_id: str | None = Query(default=None),
+) -> Dict[str, Any]:
+    return query_refund(order_id, customer_id=customer_id)
 
 
 __all__ = [

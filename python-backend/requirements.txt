@@ -5,3 +5,5 @@ fastapi
 uvicorn
 python-dotenv
 pytest
+SQLAlchemy>=2.0,<3.0
+PyMySQL>=1.1,<2.0

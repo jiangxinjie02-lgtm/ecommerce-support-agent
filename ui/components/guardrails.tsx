@@ -18,7 +18,7 @@ export function Guardrails({ guardrails, inputGuardrails }: GuardrailsProps) {
   };
 
   const guardrailDescriptionMap: Record<string, string> = {
-    "Relevance Guardrail": "Ensure messages are relevant to airline support",
+    "Ecommerce Safety Guardrail": "拦截越权、提示词泄露和绕过退款确认等危险请求",
     "Jailbreak Guardrail":
       "Detect and block attempts to bypass or override system instructions",
   };
