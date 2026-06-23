@@ -54,11 +54,29 @@ def list_refunds() -> None:
             )
 
 
+def show_scenarios() -> None:
+    rows = [
+        ("DDN20260001", "运输中", "正常订单与物流查询"),
+        ("DDN20260002", "已签收/可退款", "完整退款二阶段确认"),
+        ("DDN20260003", "已关闭", "不可退款"),
+        ("DDN20260004", "待付款", "无物流、不可退款"),
+        ("DDN20260005", "待发货", "已支付但暂无物流"),
+        ("DDN20260006", "已有退款申请", "重复退款幂等拦截"),
+        ("DDN20260007", "派送异常", "地址无法联系"),
+        ("DDN20260008", "超出售后期", "已签收但不可退款"),
+        ("DDN20260009", "运输异常", "天气导致物流延误"),
+        ("DDN20260010", "高金额/可退款", "金额与订单归属校验"),
+    ]
+    print("订单号 | 场景状态 | 推荐验证")
+    for order_id, status, scenario in rows:
+        print(f"{order_id} | {status} | {scenario}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="电商售后 Agent 数据库管理工具")
     parser.add_argument(
         "command",
-        choices=["init", "reset", "stats", "orders", "refunds"],
+        choices=["init", "reset", "stats", "orders", "refunds", "scenarios"],
     )
     args = parser.parse_args()
 
@@ -74,6 +92,8 @@ def main() -> None:
         list_orders()
     elif args.command == "refunds":
         list_refunds()
+    elif args.command == "scenarios":
+        show_scenarios()
 
 
 if __name__ == "__main__":

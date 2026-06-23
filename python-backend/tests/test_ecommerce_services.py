@@ -101,6 +101,26 @@ def test_closed_order_cannot_refund():
     assert result["eligible"] is False
 
 
+def test_paid_order_without_logistics_returns_clear_message():
+    result = query_logistics("DDN20260005")
+    assert result["success"] is False
+    assert result["message"] == "该订单暂无物流信息"
+
+
+def test_abnormal_logistics_scenario():
+    result = query_logistics("DDN20260009")
+    assert result["success"] is True
+    assert result["logistics"]["status"] == "运输异常"
+    assert "天气" in result["logistics"]["latest_event"]
+
+
+def test_seeded_refund_is_detected_as_duplicate():
+    result = check_refund_eligibility("DDN20260006")
+    assert result["eligible"] is False
+    assert result["duplicate"] is True
+    assert result["refund"]["refund_request_id"] == "RFDEMO0001"
+
+
 def test_confirmation_token_is_not_exposed_in_public_context():
     context = EcommerceAgentContext(
         order_id="DDN20260002",
