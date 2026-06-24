@@ -18,6 +18,13 @@ from .tools import (
 MODEL = get_agent_model()
 
 
+# 按电商售后业务职责拆分多个专业 Agent，而不是把所有能力放进单个 Agent。
+# 每个 Agent 只保留自己需要的 Prompt 和工具集合，降低错误工具调用概率。
+# 入口 Triage Agent 负责判断意图，专业 Agent 负责具体查询或退款流程。
+
+
+# Order Agent：只负责订单查询。
+# 它只注册 get_order 工具，所以模型在这个 Agent 中不能直接操作物流或退款。
 order_agent = Agent[EcommerceAgentChatContext](
     name="Order Agent",
     model=MODEL,
@@ -32,6 +39,8 @@ order_agent = Agent[EcommerceAgentChatContext](
 )
 
 
+# Logistics Agent：只负责物流查询。
+# 用户第二轮只说“什么时候到”时，系统可以从 Context 里取上一轮订单号。
 logistics_agent = Agent[EcommerceAgentChatContext](
     name="Logistics Agent",
     model=MODEL,
@@ -46,6 +55,9 @@ logistics_agent = Agent[EcommerceAgentChatContext](
 )
 
 
+# Refund Agent：退款是高风险写操作，所以拆成两个工具：
+# 1. check_refund：只检查资格并生成确认令牌，不创建退款；
+# 2. create_refund_request：用户明确确认后，后端再次校验令牌再写库。
 refund_agent = Agent[EcommerceAgentChatContext](
     name="Refund Agent",
     model=MODEL,
@@ -61,6 +73,8 @@ refund_agent = Agent[EcommerceAgentChatContext](
 )
 
 
+# AfterSales Policy Agent：回答通用售后政策。
+# 这里适合以后扩展成 RAG：把售后规则、FAQ、产品说明书切片后放入向量库检索。
 faq_agent = Agent[EcommerceAgentChatContext](
     name="AfterSales Policy Agent",
     model=MODEL,
@@ -75,6 +89,9 @@ faq_agent = Agent[EcommerceAgentChatContext](
 )
 
 
+# Triage Agent：系统入口。
+# 它不直接查库、不直接写业务数据，只负责识别用户意图并 Handoff 给专业 Agent。
+# Handoff 表示把任务转交给另一个 Agent 继续处理，不等同于普通函数调用。
 triage_agent = Agent[EcommerceAgentChatContext](
     name="Ecommerce Triage Agent",
     model=MODEL,
@@ -90,6 +107,9 @@ triage_agent = Agent[EcommerceAgentChatContext](
 )
 
 
+# 专业 Agent 之间也允许继续 Handoff。
+# 例子：用户先查订单，再问“什么时候到”，Order Agent 可以把任务交给 Logistics Agent。
+# 这样多轮对话不用重新从入口开始，也能保留上下文。
 order_agent.handoffs.extend([logistics_agent, refund_agent, triage_agent])
 logistics_agent.handoffs.extend([order_agent, refund_agent, triage_agent])
 refund_agent.handoffs.extend([order_agent, faq_agent, triage_agent])

@@ -15,6 +15,9 @@ async def ecommerce_safety_guardrail(
     input: str | list[TResponseInputItem],
 ) -> GuardrailFunctionOutput:
     """Use a local rule guardrail so normal requests do not consume extra tokens."""
+    # Guardrail 是 Agent 外围的安全边界。这里用本地规则快速拦截提示词注入、
+    # 绕过退款确认、危险数据库指令等输入，不额外消耗模型 token。
+    # 注意：这只是第一层防护，退款真正的安全校验仍在 services.py。
     if isinstance(input, str):
         text = input
     else:
@@ -29,6 +32,7 @@ async def ecommerce_safety_guardrail(
         "跳过确认",
         "drop table",
     )
+    # 命中危险短语就触发 tripwire，当前这轮 Agent 执行会被中断。
     matched = next((phrase for phrase in blocked_phrases if phrase in lowered), None)
     is_safe = matched is None
     return GuardrailFunctionOutput(

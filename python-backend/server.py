@@ -134,6 +134,9 @@ def _parse_tool_args(raw_args: Any) -> Any:
 
 @dataclass
 class ConversationState:
+    # 每个 thread 独立保存一份会话状态。
+    # input_items 是给 Agent Runner 的历史输入；context 是业务结构化状态；
+    # current_agent_name 记录当前由哪个 Agent 接着处理下一轮。
     input_items: List[Any] = field(default_factory=list)
     context: EcommerceAgentContext = field(default_factory=create_initial_context)
     current_agent_name: str = triage_agent.name
@@ -143,6 +146,8 @@ class ConversationState:
 
 class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
     def __init__(self) -> None:
+        # MemoryStore 用于本地保存线程和消息。
+        # 生产环境可以替换成数据库/Redis 等持久化存储。
         self.store = MemoryStore()
         super().__init__(self.store)
         self._state: Dict[str, ConversationState] = {}
@@ -151,6 +156,8 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
         self._last_snapshot: Dict[str, str] = {}
 
     def _state_for_thread(self, thread_id: str) -> ConversationState:
+        # 一个浏览器会话对应一个 thread。
+        # 如果是新 thread，就初始化订单/物流/退款相关上下文。
         if thread_id not in self._state:
             self._state[thread_id] = ConversationState()
         return self._state[thread_id]
@@ -168,6 +175,9 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
         ChatKit treats an item id as a stable UI key, so a repeated id causes a
         later answer to replace an earlier answer in the conversation.
         """
+        # DeepSeek/OpenAI-compatible 接口可能复用消息 ID，
+        # ChatKit 会把相同 ID 当成同一条消息，导致第二个回答覆盖第一个回答。
+        # 所以服务端把 assistant message id 重新映射成当前 thread 内唯一的 id。
         if isinstance(event, ThreadItemAddedEvent) and isinstance(
             event.item, AssistantMessageItem
         ):
@@ -225,6 +235,8 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
         input_text: str,
         guardrail_results: List[Any],
     ) -> List[GuardrailCheck]:
+        # 把 Guardrail 的检查结果记录下来，用于前端运行面板展示：
+        # 哪个 Guardrail 执行了、是否通过、为什么拦截。
         checks: List[GuardrailCheck] = []
         timestamp = time.time() * 1000
         agent = _get_agent_by_name(agent_name)
@@ -256,6 +268,7 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
 
     async def _broadcast_delta(self, thread: ThreadMetadata, delta_events: list[AgentEvent]) -> None:
         """Send a delta-only payload (used for transient progress updates)."""
+        # 向前端推送增量事件，避免每次都刷新完整大对象。
         listeners = self._listeners.get(thread.id, [])
         if not listeners:
             return
@@ -272,6 +285,9 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
         current_agent_name: str,
         thread_id: str,
     ) -> (List[AgentEvent], str):
+        # 把 Agents SDK 的内部运行项转换成前端能展示的事件：
+        # message / handoff / tool_call / tool_output。
+        # 前端运行面板看到的 Agent 切换和工具调用，就是这里记录出来的。
         events: List[AgentEvent] = []
         active_agent = current_agent_name
         for item in run_items:
@@ -288,6 +304,7 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
                     )
                 )
             elif isinstance(item, HandoffOutputItem):
+                # Handoff：一个 Agent 把任务交给另一个专业 Agent。
                 events.append(
                     AgentEvent(
                         id=uuid4().hex,
@@ -330,6 +347,7 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
 
                 active_agent = to_agent.name
             elif isinstance(item, ToolCallItem):
+                # Tool Call：模型决定调用哪个工具，以及传入哪些参数。
                 tool_name = getattr(item.raw_item, "name", None)
                 raw_args = getattr(item.raw_item, "arguments", None)
                 ev = AgentEvent(
@@ -342,6 +360,7 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
                 )
                 events.append(ev)
             elif isinstance(item, ToolCallOutputItem):
+                # Tool Output：后端工具执行完成后返回的真实业务结果。
                 ev = AgentEvent(
                     id=uuid4().hex,
                     type="tool_output",
@@ -360,6 +379,8 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
         input_user_message: UserMessageItem | None,
         context: dict[str, Any],
     ) -> AsyncIterator[ThreadStreamEvent]:
+        # ChatKit 每收到一条用户消息都会进入这里。
+        # 整体链路：用户消息 -> 当前 Agent -> Handoff/Tool Calling -> 流式返回 -> 更新运行面板。
         state = self._state_for_thread(thread.id)
         user_text = ""
         if input_user_message is not None:
@@ -367,6 +388,8 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
             state.input_items.append({"content": user_text, "role": "user"})
 
         previous_context = public_context(state.context)
+        # chat_context 会把 thread、store、request_context 和业务 state 注入给工具函数。
+        # tools.py 里的 get_order / check_refund 就是通过这个 context 更新业务状态。
         chat_context = EcommerceAgentChatContext(
             thread=thread,
             store=self.store,
@@ -385,6 +408,7 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
                 state.input_items,
                 context=chat_context,
             )
+            # stream_agent_response 负责把 Agent Runner 的流式结果转成 ChatKit 可识别事件。
             async for event in stream_agent_response(chat_context, result):
                 event = self._remap_assistant_item_event(
                     event,
@@ -398,6 +422,7 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
                 # If this is a run-item event, convert and broadcast immediately.
                 if hasattr(event, "item"):
                     try:
+                        # 边流式输出边记录运行过程，所以前端能实时看到 Handoff 和 Tool 调用。
                         run_item = getattr(event, "item")
                         new_events, active_agent = self._record_events(
                             [run_item], state.current_agent_name, thread.id
@@ -474,6 +499,7 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
             )
             return
         state.input_items = result.to_input_list()
+        # 把本轮最终输入列表保存下来，下一轮对话继续带着上下文运行。
         remaining_items = result.new_items[streamed_items_seen:]
         new_events, active_agent = self._record_events(remaining_items, state.current_agent_name, thread.id)
         state.events.extend(new_events)
@@ -490,6 +516,8 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
         )
 
         new_context = public_context(state.context)
+        # 如果结构化 Context 发生变化，额外记录 context_update 事件。
+        # 例如订单号、运单号、退款状态发生更新，前端运行面板会显示出来。
         changes = {k: new_context[k] for k in new_context if previous_context.get(k) != new_context[k]}
         if changes:
             state.events.append(
@@ -529,6 +557,7 @@ class EcommerceSupportServer(ChatKitServer[dict[str, Any]]):
             yield
 
     async def snapshot(self, thread_id: Optional[str], context: dict[str, Any]) -> Dict[str, Any]:
+        # 前端运行面板会调用 snapshot 获取当前 Agent、Context、事件和 Guardrail 状态。
         thread = await self._ensure_thread(thread_id, context)
         state = self._state_for_thread(thread.id)
         return {

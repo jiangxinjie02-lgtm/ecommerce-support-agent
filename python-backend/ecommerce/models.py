@@ -27,6 +27,8 @@ def utc_now() -> datetime:
 class Order(Base):
     __tablename__ = "orders"
 
+    # 订单表：这是 Agent 查询订单、物流、退款资格时依赖的真实业务数据。
+    # 模型不直接编造订单状态，而是通过 Tool -> Service -> DB 读取这里的数据。
     order_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     customer_id: Mapped[str] = mapped_column(String(32), index=True)
     customer_name: Mapped[str] = mapped_column(String(64))
@@ -51,6 +53,8 @@ class Order(Base):
 class Logistics(Base):
     __tablename__ = "logistics"
 
+    # 物流主表：一个订单对应一条物流主信息。
+    # 详细轨迹放在 LogisticsEvent，便于展示“最新状态 + 历史轨迹”。
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     order_id: Mapped[str] = mapped_column(
         ForeignKey("orders.order_id"), unique=True, index=True
@@ -72,6 +76,7 @@ class Logistics(Base):
 class LogisticsEvent(Base):
     __tablename__ = "logistics_events"
 
+    # 物流轨迹表：按时间倒序返回，前端可以展示最近物流节点。
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     logistics_id: Mapped[int] = mapped_column(ForeignKey("logistics.id"), index=True)
     event_time: Mapped[datetime] = mapped_column(DateTime)
@@ -84,6 +89,9 @@ class RefundConfirmation(Base):
     __tablename__ = "refund_confirmations"
     __table_args__ = (UniqueConstraint("token", name="uq_refund_confirmation_token"),)
 
+    # 退款确认令牌表：
+    # 第一阶段 check_refund 生成 token；第二阶段 create_refund 必须校验 token。
+    # consumed_at 用来标记令牌已经使用，防止同一个确认被重复提交。
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     order_id: Mapped[str] = mapped_column(ForeignKey("orders.order_id"), index=True)
     token: Mapped[str] = mapped_column(String(64), unique=True)
@@ -99,6 +107,9 @@ class RefundRequest(Base):
         UniqueConstraint("idempotency_key", name="uq_refund_idempotency_key"),
     )
 
+    # 退款申请表：
+    # order_id 和 idempotency_key 都加唯一约束，作为数据库层兜底。
+    # 即使接口被重复调用，也不会给同一订单创建多笔退款。
     refund_request_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     order_id: Mapped[str] = mapped_column(ForeignKey("orders.order_id"), index=True)
     reason: Mapped[str] = mapped_column(Text)
